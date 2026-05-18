@@ -1,59 +1,39 @@
-# Copyright(c) The Maintainers of Nanvix.
-# Licensed under the MIT License.
-
+# TEMP: Layer-3 exhaustion test. Replaces the real reusable-workflow
+# wrapper with a minimal driver that exercises update-nanvix-version.sh
+# directly. Restore from .github/workflows/nanvix-ci.real.yml.bak when done.
 name: Nanvix CI
 
 on:
-  schedule:
-    - cron: "0 9 * * *"
-  push:
-    branches: ["nanvix/**"]
-  pull_request:
-    branches: ["nanvix/**"]
   workflow_dispatch:
 
 permissions:
   contents: write
   actions: write
   issues: write
-  pull-requests: write
-  packages: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name || github.ref || 'default' }}
-  cancel-in-progress: true
 
 jobs:
-  ci:
-    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
-    uses: nanvix/workflows/.github/workflows/nanvix-ci.yml@v2.0.1
-    with:
-      zutil-version: "v0.9.1"
-      platforms: '["microvm"]'
-      process-modes: '["multi-process","single-process","standalone"]'
-      memory-sizes: '["128mb","256mb"]'
-      windows-matrix-exclude: '[]'
-      skip-full-test-modes: '[]'
-      caller-event-name: ${{ github.event_name }}
-      windows-test: true
-      docker-image: "ghcr.io/nanvix/toolchain-gcc:sha-34a3641"  # yamllint disable-line rule:line-length
-    secrets:
-      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
-      DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+  preflight-skip-test:
+    runs-on: ubuntu-latest
+    env:
+      REPO: ${{ github.repository }}
+      LATEST_TAG: v99.99.99
+      LATEST_VERSION: "99.99.99"
+      MAX_RETRIES: "2"
+      BACKOFF_BASE_SECONDS: "5"
+      GH_TOKEN: ${{ secrets.DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout consumer
+        uses: actions/checkout@v6
 
-  ci-scheduled:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    uses: nanvix/workflows/.github/workflows/nanvix-ci.yml@v2.0.1
-    with:
-      zutil-version: "v0.9.1"
-      platforms: '["microvm"]'
-      process-modes: '["multi-process","single-process","standalone"]'
-      memory-sizes: '["128mb","256mb"]'
-      windows-matrix-exclude: '[]'
-      skip-full-test-modes: '[]'
-      caller-event-name: 'schedule'
-      windows-test: true
-      docker-image: "ghcr.io/nanvix/toolchain-gcc:sha-34a3641"  # yamllint disable-line rule:line-length
-    secrets:
-      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
-      DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+      - name: Checkout workflows@fix/sync-failure-cascade
+        uses: actions/checkout@v6
+        with:
+          repository: ada-x64/workflows
+          ref: fix/sync-failure-cascade
+          path: _workflows
+
+      - name: Install nanvix-zutil
+        run: pipx install nanvix-zutil || pip install --user nanvix-zutil
+
+      - name: Run preflight (expected to skip with exit 0)
+        run: bash _workflows/scripts/update-nanvix-version.sh
