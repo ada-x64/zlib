@@ -32,8 +32,6 @@ jobs:
           ref: fix/sync-failure-cascade
           path: _workflows
 
-      - name: Install nanvix-zutil
-        run: pipx install nanvix-zutil || pip install --user nanvix-zutil
 
       - name: Run preflight (expected to skip with exit 0)
         run: bash _workflows/scripts/update-nanvix-version.sh
